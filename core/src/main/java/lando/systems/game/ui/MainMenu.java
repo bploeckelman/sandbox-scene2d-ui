@@ -46,10 +46,21 @@ public class MainMenu extends Table {
 
         // add event listeners
 
+        menuBar.setMenuListener(new MenuBar.MenuBarListener() {
+            @Override
+            public void menuOpened(Menu menu) {
+                //Dialogs.showOKDialog(stage, "Menu", "Opened: " + menu.getTitle());
+            }
+
+            @Override
+            public void menuClosed(Menu menu) {
+                //Dialogs.showOKDialog(stage, "Menu", "Closed: " + menu.getTitle());
+            }
+        });
+
         helpAbout.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                super.clicked(event, x, y);
                 Dialogs.showOKDialog(stage, "About", "Sandbox: Scene2d UI");
             }
         });

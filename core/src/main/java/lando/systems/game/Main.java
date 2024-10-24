@@ -8,15 +8,18 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.scenes.scene2d.Event;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
-import com.badlogic.gdx.scenes.scene2d.utils.DragAndDrop;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
-import com.badlogic.gdx.utils.viewport.Viewport;
 import com.kotcrab.vis.ui.VisUI;
+import com.kotcrab.vis.ui.widget.PopupMenu;
+import com.kotcrab.vis.ui.widget.tabbedpane.Tab;
+import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPaneAdapter;
 import lando.systems.game.ui.MainMenu;
+import lando.systems.game.ui.Toolbar;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class Main extends ApplicationAdapter {
@@ -28,12 +31,10 @@ public class Main extends ApplicationAdapter {
     TextureAtlas atlas;
     Skin skin;
 
-    Viewport viewport;
     Stage stage;
-    DragAndDrop dragAndDrop;
-
     Table root;
     MainMenu mainMenu;
+    Toolbar toolbar;
 
     @Override
     public void create() {
@@ -48,33 +49,42 @@ public class Main extends ApplicationAdapter {
         skin.addRegions(atlas);
         VisUI.load(skin);
 
-        viewport = new ScreenViewport();
-        stage = new Stage(viewport);
-        Gdx.input.setInputProcessor(stage);
-        dragAndDrop = new DragAndDrop();
-
         root = new Table();
         root.setFillParent(true);
+
+        stage = new Stage(new ScreenViewport());
+//        stage.setDebugTableUnderMouse(Table.Debug.all);
         stage.addActor(root);
+        Gdx.input.setInputProcessor(stage);
 
-        defaults();
-        populate();
+        setDefaults();
+        populateRoot();
     }
 
-    public void defaults() {
-        root.top().left();
+    public void setDefaults() {
+        root.defaults().top().left();
     }
 
-    public void populate() {
+    public void populateRoot() {
         root.clearChildren();
 
         mainMenu = new MainMenu(stage, skin);
-        root.add(mainMenu).growX();
+        toolbar = new Toolbar(stage, skin);
+
+        root.add(mainMenu).growX().row();
+        root.add(toolbar).grow();
     }
 
     @Override
     public void resize(int width, int height) {
+        PopupMenu.removeEveryMenu(stage);
+
         stage.getViewport().update(width, height);
+
+        var resizeEvent = new Event();
+        for (var actor : stage.getActors()) {
+            actor.fire(resizeEvent);
+        }
     }
 
     public void update(float dt) {
