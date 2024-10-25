@@ -4,14 +4,14 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
-import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.kotcrab.vis.ui.util.dialog.Dialogs;
 import com.kotcrab.vis.ui.widget.Menu;
 import com.kotcrab.vis.ui.widget.MenuBar;
 import com.kotcrab.vis.ui.widget.MenuItem;
+import com.kotcrab.vis.ui.widget.VisTable;
 
-public class MainMenu extends Table {
+public class MainMenu extends VisTable {
 
     Stage stage;
     MenuBar menuBar;
@@ -20,6 +20,7 @@ public class MainMenu extends Table {
     MenuItem helpAbout;
 
     public MainMenu(Stage stage, Skin skin) {
+        super(true);
         this.stage = stage;
 
         setSkin(skin);
