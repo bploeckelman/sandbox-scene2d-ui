@@ -77,9 +77,11 @@ public class Main extends ApplicationAdapter {
 
     @Override
     public void resize(int width, int height) {
+        super.resize(width, height);
+
         PopupMenu.removeEveryMenu(stage);
 
-        stage.getViewport().update(width, height);
+        stage.getViewport().update(width, height, true);
 
         var resizeEvent = new Event();
         for (var actor : stage.getActors()) {
