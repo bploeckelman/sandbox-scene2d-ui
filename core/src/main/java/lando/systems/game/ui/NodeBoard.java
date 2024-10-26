@@ -1,17 +1,22 @@
 package lando.systems.game.ui;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Camera;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.WidgetGroup;
+import com.badlogic.gdx.scenes.scene2d.utils.ScissorStack;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.badlogic.gdx.utils.viewport.Viewport;
 import lando.systems.game.Edge;
 import lando.systems.game.Main;
 import space.earlygrey.shapedrawer.JoinType;
@@ -40,6 +45,7 @@ public class NodeBoard extends WidgetGroup {
         this.camera.update();
 
         setStage(stage);
+
         build();
     }
 
@@ -75,8 +81,8 @@ public class NodeBoard extends WidgetGroup {
     @Override
     public void draw(Batch batch, float parentAlpha) {
         var shapes = Main.get.shapes;
+        var stageCamera = Main.get.uiCamera;
 
-        // apply the board's camera consistently to everything drawn by the board
         camera.update();
         batch.setProjectionMatrix(camera.combined);
         shapes.getBatch().setProjectionMatrix(camera.combined);
@@ -95,8 +101,6 @@ public class NodeBoard extends WidgetGroup {
         }
         drawConnections(batch, shapes);
 
-        // restore the stage's camera for the rest of the ui
-        var stageCamera = getStage().getCamera();
         shapes.getBatch().setProjectionMatrix(stageCamera.combined);
         batch.setProjectionMatrix(stageCamera.combined);
     }

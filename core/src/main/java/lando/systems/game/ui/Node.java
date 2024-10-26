@@ -5,6 +5,7 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -55,6 +56,7 @@ public class Node extends VisWindow {
         setStage(stage);
         setSkin(skin);
         setSize(Defaults.NODE_SIZE, Defaults.NODE_SIZE);
+//        setClip(false); // NOTE: this fixes the content getting clipped on board pan, but breaks the title layout
         setMovable(true);
         setResizable(false);
         setKeepWithinStage(false);
@@ -104,7 +106,6 @@ public class Node extends VisWindow {
     @Override
     public void draw(Batch batch, float parentAlpha) {
         super.draw(batch, parentAlpha);
-
         drawPorts(batch);
     }
 
