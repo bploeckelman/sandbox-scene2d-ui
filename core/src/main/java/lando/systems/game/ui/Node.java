@@ -6,23 +6,24 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Window;
-import com.badlogic.gdx.utils.ObjectMap;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisWindow;
 import lando.systems.game.Edge;
 import lando.systems.game.Main;
 
-import javax.sound.sampled.Port;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class Node extends VisWindow {
 
-    private static final float DEFAULT_SIZE = 300;
-
-    public static float PORT_RADIUS = 5;
+    public static class Defaults {
+        public static final float NODE_SIZE = 200;
+        public static final float PORT_RADIUS = 8;
+        public static final float PORT_EDGE_MARGIN = 40;
+    }
 
     final Stage stage;
     final Skin skin;
@@ -44,17 +45,21 @@ public class Node extends VisWindow {
 
         setStage(stage);
         setSkin(skin);
-        setSize(DEFAULT_SIZE, DEFAULT_SIZE);
+        setSize(Defaults.NODE_SIZE, Defaults.NODE_SIZE);
         setMovable(true);
         setResizable(false);
         setKeepWithinStage(true);
         setKeepWithinParent(true);
 
-        var def = skin.get("default", Window.WindowStyle.class);
+        // TODO(brian): 'default' and 'noborder' (and I'm assuming others)
+        //  WindowStyles behave differently than others, they can drag but others can't
+        //  it likely has something to do with `stageBackground` being set or not
+        //  need to get back to it because I'd rather use the 'panel' assets from kenney.nl for nodes
+        var def = skin.get("default2", Window.WindowStyle.class);
         var nob = skin.get("noborder", Window.WindowStyle.class);
         var pan = skin.get("panel", Window.WindowStyle.class);
         var mod = skin.get("module-list", Window.WindowStyle.class);
-        var style = nob;
+        var style = def;
         setStyle(style);
 
         build();
@@ -123,24 +128,25 @@ public class Node extends VisWindow {
     }
 
     private void drawPorts(Batch batch) {
-        TextureRegion texture;
+        var textures = Main.get.radioBtnTextures;
+        drawPorts(batch, inputs.values(), textures.over(), textures.tick());
+        drawPorts(batch, outputs.values(), textures.down(), textures.tickDisabled());
+    }
+
+    private void drawPorts(Batch batch, Collection<Port> ports, TextureRegion texture, TextureRegion tick) {
+        float radius = Defaults.PORT_RADIUS;
+        float size = 2 * radius;
         float x = getX();
         float y = getY();
-        float size = 2 * PORT_RADIUS;
 
-        texture = Main.get.radioBtnTextures.normal();
-        for (var input : inputs.values()) {
+        for (var port : ports) {
             batch.draw(texture,
-                x + input.pos.x - PORT_RADIUS,
-                y + input.pos.y - PORT_RADIUS,
+                x + port.pos.x - radius,
+                y + port.pos.y - radius,
                 size, size);
-        }
-
-        texture = Main.get.radioBtnTextures.down();
-        for (var output : outputs.values()) {
-            batch.draw(texture,
-                x + output.pos.x - PORT_RADIUS,
-                y + output.pos.y - PORT_RADIUS,
+            batch.draw(tick,
+                x + port.pos.x - radius,
+                y + port.pos.y - radius,
                 size, size);
         }
     }
@@ -150,55 +156,62 @@ public class Node extends VisWindow {
             var edgeInputs = inputsByEdge.get(edge);
             var edgeOutputs = outputsByEdge.get(edge);
 
-            float x, y;
-            float margin = 10;
+            // given some margin, calculate even spacing between each port
+            float margin = Defaults.PORT_EDGE_MARGIN;
             float inputSpacing = getPortSpacing(edge, margin, edgeInputs.size());
             float outputSpacing = getPortSpacing(edge, margin, edgeOutputs.size());
 
-            x = getPortStartX(edge, margin);
-            y = getPortStartY(edge, margin);
-            for (var port : edgeInputs) {
-                port.pos.set(x, y);
+            // get the center of the edge relative to (0, 0)
+            // as the bottom left corner of the node window
+            float centerX = getEdgeCenterX(edge);
+            float centerY = getEdgeCenterY(edge);
 
-                switch (edge) {
-                    case TOP, BOTTOM: x += inputSpacing; break;
-                    case LEFT, RIGHT: y += inputSpacing; break;
-                }
-            }
+            // position ports along the shared edge, spaced evenly from the center out to margins
+            positionPorts(edgeInputs, edge, centerX, centerY, inputSpacing);
+            positionPorts(edgeOutputs, edge, centerX, centerY, outputSpacing);
+        }
+    }
 
-            x = getPortStartX(edge, margin);
-            y = getPortStartY(edge, margin);
-            for (var port : edgeOutputs) {
-                port.pos.set(x, y);
+    private void positionPorts(List<Port> ports, Edge edge, float centerX, float centerY, float spacing) {
+        int count = ports.size();
+        if (count == 0) return;
 
-                switch (edge) {
-                    case TOP, BOTTOM: x += outputSpacing; break;
-                    case LEFT, RIGHT: y += outputSpacing; break;
-                }
+        // center alignment offset for the ports
+        float offset = -(count - 1) * spacing / 2f;
+
+        for (int i = 0; i < count; i++) {
+            var port = ports.get(i);
+            var space = i * spacing;
+            switch (edge) {
+                case TOP, BOTTOM -> port.pos.set(centerX + offset + space, centerY);
+                case LEFT, RIGHT -> port.pos.set(centerX, centerY + offset + space);
             }
         }
     }
 
     private float getPortSpacing(Edge edge, float margin, int count) {
+        // no spacing if there's only one port
+        if (count < 2) return 0;
+
         return switch (edge) {
-            case BOTTOM, TOP -> (getWidth() - 2 * margin) / (count + 1);
-            case LEFT, RIGHT -> (getHeight() - 2 * margin) / (count + 1);
+            case BOTTOM, TOP -> (getWidth() - 2 * margin) / (count - 1);
+            case LEFT, RIGHT -> (getHeight() - 2 * margin) / (count - 1);
         };
     }
 
-    private float getPortStartX(Edge edge, float margin) {
+    private float getEdgeCenterX(Edge edge) {
         return switch (edge) {
-            case TOP, BOTTOM -> margin;
+            case TOP, BOTTOM -> getWidth() / 2f;
             case LEFT -> 0;
             case RIGHT -> getWidth();
         };
     }
 
-    private float getPortStartY(Edge edge, float margin) {
+    private float getEdgeCenterY(Edge edge) {
         return switch (edge) {
             case TOP -> getHeight();
             case BOTTOM -> 0;
-            case LEFT, RIGHT -> margin;
+            case LEFT, RIGHT -> getHeight() / 2;
         };
     }
 }

@@ -3,6 +3,7 @@ package lando.systems.game;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
@@ -12,7 +13,6 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Event;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
-import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.Value;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
@@ -52,11 +52,12 @@ public class Main extends ApplicationAdapter {
 
     Skin skin;
     Stage stage;
+    Stage boardStage;
 
     VisTable root;
     MainMenu menu;
     VisTable workspace;
-    Toolbar toolbar;
+    Toolbar tools;
     NodeBoard board;
 
     public Main() {
@@ -69,10 +70,11 @@ public class Main extends ApplicationAdapter {
         shapes = new ShapeDrawer(batch);
         camera = new OrthographicCamera();
         camera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-
         backgroundColor = new Color(0.15f, 0.15f, 0.2f, 1f);
-        atlas = new TextureAtlas(Gdx.files.internal("ui/skin-talos/uiskin.atlas"));
         gdx = new Texture("libgdx.png");
+
+        var skinFile = "ui/skin-talos/uiskin";
+        atlas = new TextureAtlas(Gdx.files.internal(skinFile + ".atlas"));
         radioBtnTextures = new RadioButtonTextures(
             atlas.findRegion("vis-radio"),
             atlas.findRegion("vis-radio-over"),
@@ -83,18 +85,27 @@ public class Main extends ApplicationAdapter {
             atlas.findRegion("border-circle-error")
         );
 
-        skin = new Skin(Gdx.files.internal("ui/skin-talos/uiskin.json"), atlas);
+        skin = new Skin(Gdx.files.internal(skinFile + ".json"), atlas);
         skin.addRegions(atlas);
         VisUI.load(skin);
         VisUI.setDefaultTitleAlign(Align.center);
 
+        // the board is its own independent actor, acting as the background of the stage
+        // with pan/zoom capabilities and node interaction independent of the rest of the UI
+        boardStage = new Stage(new ScreenViewport());
+        board = new NodeBoard(boardStage, skin);
+        boardStage.addActor(board);
+
         root = new VisTable(true);
         root.setFillParent(true);
-
         stage = new Stage(new ScreenViewport());
         stage.addActor(root);
-        stage.setDebugTableUnderMouse(Table.Debug.all);
-        Gdx.input.setInputProcessor(stage);
+
+//        stage.setDebugTableUnderMouse(Table.Debug.all);
+//        stage.setDebugAll(true);
+
+        var inputMux = new InputMultiplexer(stage, boardStage);
+        Gdx.input.setInputProcessor(inputMux);
 
         setDefaults();
         populateRoot();
@@ -109,12 +120,12 @@ public class Main extends ApplicationAdapter {
 
         menu = new MainMenu(stage, skin);
         workspace = new VisTable(true);
+        tools = new Toolbar(stage, skin);
 
-        toolbar = new Toolbar(stage, skin);
-        board = new NodeBoard(stage, skin);
-
-        workspace.add(toolbar).width(Value.percentWidth(0.25f, root)).growY();
-        workspace.add(board).width(Value.percentWidth(0.75f, root)).grow();
+        var toolsWidth = Value.percentWidth(1 / 4f, root);
+        var emptyWidth = Value.percentWidth(3 / 4f, root);
+        workspace.add(tools).width(toolsWidth).growY();
+        workspace.add().width(emptyWidth).grow();
 
         root.add(menu).growX();
         root.row();
@@ -129,6 +140,9 @@ public class Main extends ApplicationAdapter {
 
         stage.getViewport().update(width, height, true);
 
+        boardStage.getViewport().update(width, height, true);
+        board.setBounds(0, 0, stage.getWidth(), stage.getHeight());
+
         var resizeEvent = new Event();
         for (var actor : stage.getActors()) {
             actor.fire(resizeEvent);
@@ -139,7 +153,10 @@ public class Main extends ApplicationAdapter {
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             Gdx.app.exit();
         }
+
         stage.act(dt);
+        boardStage.act(dt);
+
         camera.update();
     }
 
@@ -150,17 +167,22 @@ public class Main extends ApplicationAdapter {
 
         ScreenUtils.clear(backgroundColor);
 
+        float margin = 50;
+        float x = camera.viewportWidth - gdx.getWidth() - margin;
+
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        batch.draw(gdx, 140, 210);
-        batch.draw(atlas.findRegion("window"), 200, 200, 200, 200);
+        batch.draw(gdx, x, margin);
         batch.end();
 
+        boardStage.draw();
         stage.draw();
     }
 
     @Override
     public void dispose() {
+        boardStage.dispose();
+        stage.dispose();
         batch.dispose();
         gdx.dispose();
         atlas.dispose();
