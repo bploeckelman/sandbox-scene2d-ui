@@ -12,9 +12,10 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Event;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
-import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.Value;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
@@ -34,7 +35,9 @@ public class Main extends ApplicationAdapter {
 
     public SpriteBatch batch;
     public ShapeDrawer shapes;
-    public OrthographicCamera camera;
+    public OrthographicCamera windowCamera;
+    public OrthographicCamera uiCamera;
+    public InputMultiplexer inputMux;
 
     Color backgroundColor;
     TextureAtlas atlas;
@@ -56,7 +59,6 @@ public class Main extends ApplicationAdapter {
 
     Skin skin;
     Stage stage;
-    Stage boardStage;
 
     VisTable root;
     MainMenu menu;
@@ -72,8 +74,16 @@ public class Main extends ApplicationAdapter {
     public void create() {
         batch = new SpriteBatch();
         shapes = new ShapeDrawer(batch);
-        camera = new OrthographicCamera();
-        camera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        inputMux = new InputMultiplexer();
+
+        windowCamera = new OrthographicCamera();
+        windowCamera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        windowCamera.update();
+
+        uiCamera = new OrthographicCamera();
+        uiCamera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        uiCamera.update();
+
         backgroundColor = new Color(0.15f, 0.15f, 0.2f, 1f);
         gdx = new Texture("libgdx.png");
 
@@ -109,25 +119,35 @@ public class Main extends ApplicationAdapter {
         VisUI.load(skin);
         VisUI.setDefaultTitleAlign(Align.center);
 
-        // the board is its own independent actor, acting as the background of the stage
-        // with pan/zoom capabilities and node interaction independent of the rest of the UI
-        boardStage = new Stage(new ScreenViewport());
-        board = new NodeBoard(boardStage, skin);
-        boardStage.addActor(board);
+        stage = new Stage(new ScreenViewport(uiCamera));
+        //stage.setDebugTableUnderMouse(Table.Debug.all);
+
+        // NOTE: the board is independent of the rest of the ui,
+        //  and needs to be added first so it behaves like a background canvas
+        board = new NodeBoard(stage, skin);
+        stage.addActor(board);
 
         root = new VisTable(true);
         root.setFillParent(true);
-        stage = new Stage(new ScreenViewport());
         stage.addActor(root);
 
-//        stage.setDebugTableUnderMouse(Table.Debug.all);
-//        boardStage.setDebugTableUnderMouse(Table.Debug.all);
-
-        var inputMux = new InputMultiplexer(stage, boardStage);
-        Gdx.input.setInputProcessor(inputMux);
+        // NOTE: workaround for the board's input listener not receiving the 'scrolled' event
+        stage.addListener(new InputListener() {
+            @Override
+            public boolean scrolled(InputEvent event, float x, float y, float amountX, float amountY) {
+                if (board.hit(x, y, true) != null) {
+                    board.zoomBy(amountY);
+                    return true;
+                }
+                return false;
+            }
+        });
 
         setDefaults();
         populateRoot();
+
+        inputMux.addProcessor(stage);
+        Gdx.input.setInputProcessor(inputMux);
     }
 
     public void setDefaults() {
@@ -159,9 +179,6 @@ public class Main extends ApplicationAdapter {
 
         stage.getViewport().update(width, height, true);
 
-        boardStage.getViewport().update(width, height, true);
-        board.setBounds(0, 0, stage.getWidth(), stage.getHeight());
-
         var resizeEvent = new Event();
         for (var actor : stage.getActors()) {
             actor.fire(resizeEvent);
@@ -174,9 +191,8 @@ public class Main extends ApplicationAdapter {
         }
 
         stage.act(dt);
-        boardStage.act(dt);
 
-        camera.update();
+        windowCamera.update();
     }
 
     @Override
@@ -187,20 +203,18 @@ public class Main extends ApplicationAdapter {
         ScreenUtils.clear(backgroundColor);
 
         float margin = 50;
-        float x = camera.viewportWidth - gdx.getWidth() - margin;
+        float x = windowCamera.viewportWidth - gdx.getWidth() - margin;
 
-        batch.setProjectionMatrix(camera.combined);
+        batch.setProjectionMatrix(windowCamera.combined);
         batch.begin();
         batch.draw(gdx, x, margin);
         batch.end();
 
-        boardStage.draw();
         stage.draw();
     }
 
     @Override
     public void dispose() {
-        boardStage.dispose();
         stage.dispose();
         batch.dispose();
         gdx.dispose();

@@ -1,8 +1,12 @@
 package lando.systems.game.ui;
 
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Window;
@@ -34,6 +38,8 @@ public class Node extends VisWindow {
     final Map<Edge, List<Port>> inputsByEdge = new HashMap<>();
     final Map<Edge, List<Port>> outputsByEdge = new HashMap<>();
 
+    boolean dragging = false;
+
     public Node(String title, Stage stage, Skin skin) {
         super(title, "default3");
 
@@ -51,8 +57,8 @@ public class Node extends VisWindow {
         setSize(Defaults.NODE_SIZE, Defaults.NODE_SIZE);
         setMovable(true);
         setResizable(false);
-        setKeepWithinStage(true);
-        setKeepWithinParent(true);
+        setKeepWithinStage(false);
+        setKeepWithinParent(false);
 
         // TODO(brian): surprisingly, WindowStyle can break the draggability of the window
         //  it's apparently related to the drawable for the background, the width/height
@@ -70,7 +76,7 @@ public class Node extends VisWindow {
 
         var titleTable = getTitleTable();
         titleTable.center();
-        titleTable.padTop(8);
+        titleTable.padTop(4);
 
         var titleLabel = getTitleLabel();
         titleLabel.setAlignment(Align.center);
@@ -85,6 +91,8 @@ public class Node extends VisWindow {
         content.add("Content").growX().row();
 
         add(content).grow();
+
+        addInputListener();
     }
 
     @Override
@@ -128,6 +136,50 @@ public class Node extends VisWindow {
         Port src,
         Port dst
     ) {}
+
+    private void addInputListener() {
+        addListener(new InputListener() {
+            private final Vector2 touchStart = new Vector2();
+
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                Gdx.app.log("Node", "touched: p=%d|b=%d @ (%.0f, %.0f)".formatted(pointer, button, x, y));
+                if (button == Input.Buttons.LEFT) {
+                    // NOTE: this shouldn't be necessary when returning true
+                    //  but NodeBoard is receiving the touchDown event after this for some reason
+                    event.stop();
+
+                    touchStart.set(x, y);
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+                if (dragging) {
+                    Gdx.app.log("Node", "drag stopped");
+                }
+                dragging = false;
+            }
+
+            @Override
+            public void touchDragged(InputEvent event, float x, float y, int pointer) {
+                if (!dragging) {
+                    dragging = true;
+
+                    // log once per drag
+                    Gdx.app.log("Node", "drag started");
+                }
+
+                float dx = x - touchStart.x;
+                float dy = y - touchStart.y;
+                moveBy(dx, dy);
+
+                event.stop();
+            }
+        });
+    }
 
     private void addPort(Port.Type type, String name, Edge edge) {
         var port = new Port(this, type, edge, name);

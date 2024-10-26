@@ -66,14 +66,6 @@ public class MainMenu extends VisTable {
             }
         });
 
-        stage.addListener(new InputListener() {
-            @Override
-            public boolean keyTyped(InputEvent event, char character) {
-                // ...placeholder
-                return super.keyTyped(event, character);
-            }
-        });
-
         add(menuBar.getTable()).left().grow();
     }
 

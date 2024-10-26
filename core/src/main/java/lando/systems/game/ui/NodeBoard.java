@@ -1,5 +1,6 @@
 package lando.systems.game.ui;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.Batch;
@@ -14,14 +15,18 @@ import com.badlogic.gdx.utils.Array;
 import lando.systems.game.Edge;
 import lando.systems.game.Main;
 import space.earlygrey.shapedrawer.JoinType;
+import space.earlygrey.shapedrawer.ShapeDrawer;
 
 public class NodeBoard extends WidgetGroup {
 
     final Stage stage;
     final Skin skin;
+    final OrthographicCamera camera;
 
     final Array<Node> nodes = new Array<>();
     final Array<Node.Connection> connections = new Array<>();
+
+    boolean panning = false;
 
     private final Array<Vector2> path = new Array<>();
 
@@ -29,10 +34,13 @@ public class NodeBoard extends WidgetGroup {
         this.stage = stage;
         this.skin = skin;
 
+        // NOTE: the board keeps its own camera for pan/zoom independent of the stage
+        this.camera = new OrthographicCamera();
+        this.camera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        this.camera.update();
+
         setStage(stage);
         build();
-
-//        addPanAndZoomListeners();
     }
 
     public void build() {
@@ -49,7 +57,83 @@ public class NodeBoard extends WidgetGroup {
         node1.setPosition(x1, y1);
         node2.setPosition(x2, y2);
 
-        // setup a bunch of ports for testing
+        buildTestPorts(node1, node2);
+
+        nodes.addAll(node1, node2);
+        nodes.forEach(this::addActor);
+
+        addListener(panZoomListener);
+    }
+
+    @Override
+    public void act(float delta) {
+        super.act(delta);
+        // NOTE: this is needed so that input events are processed by the board
+        setBounds(0, 0, stage.getWidth(), stage.getHeight());
+    }
+
+    @Override
+    public void draw(Batch batch, float parentAlpha) {
+        var shapes = Main.get.shapes;
+
+        // apply the board's camera consistently to everything drawn by the board
+        camera.update();
+        batch.setProjectionMatrix(camera.combined);
+        shapes.getBatch().setProjectionMatrix(camera.combined);
+
+        drawGrid(batch, shapes);
+        // NOTE: super.draw(batch, parentAlpha) applies the stage's camera
+        //  which causes problems keeping the board and its contents independent
+        //  of the other ui in the stage that's suppose to remain fixed
+        //  relative to the stage's camera, not the board's camera,
+        //  so we'll draw the children 'manually' instead.
+        //super.draw(batch, parentAlpha);
+        for (var child : getChildren()) {
+            if (child.isVisible()) {
+                child.draw(batch, parentAlpha);
+            }
+        }
+        drawConnections(batch, shapes);
+
+        // restore the stage's camera for the rest of the ui
+        var stageCamera = getStage().getCamera();
+        shapes.getBatch().setProjectionMatrix(stageCamera.combined);
+        batch.setProjectionMatrix(stageCamera.combined);
+    }
+
+    private void drawGrid(Batch batch, ShapeDrawer shapes) {
+        var color = Color.DARK_GRAY;
+        float lineWidth = 1f;
+        float grid = 50;
+        float left = camera.position.x - camera.viewportWidth / 2 * camera.zoom;
+        float right = camera.position.x + camera.viewportWidth / 2 * camera.zoom;
+        float bottom = camera.position.y - camera.viewportHeight / 2 * camera.zoom;
+        float top = camera.position.y + camera.viewportHeight / 2 * camera.zoom;
+        float xOffset = left % grid;
+        float yOffset = bottom % grid;
+
+        float startX = left - xOffset;
+        float endX = right;
+        float startY = bottom - yOffset;
+        float endY = top;
+
+        shapes.getBatch().begin();
+        for (float x = startX; x < endX; x += grid) shapes.line(x, bottom, x, top, color, lineWidth);
+        for (float y = startY; y < endY; y += grid) shapes.line(left, y, right, y, color, lineWidth);
+        shapes.getBatch().end();
+    }
+
+    private void drawConnections(Batch batch, ShapeDrawer shapes) {
+        shapes.getBatch().begin();
+        for (var connection : connections) {
+            shapes.setColor(1, 0, 1, 1);
+            shapes.path(path, 2, JoinType.SMOOTH, true);
+            shapes.setColor(1, 1, 1, 1);
+        }
+        shapes.getBatch().end();
+    }
+
+    private void buildTestPorts(Node node1, Node node2) {
         for (var edge : Edge.values()) {
             int count;
 
@@ -77,90 +161,53 @@ public class NodeBoard extends WidgetGroup {
                 }
             }
         }
-
-        nodes.addAll(node1, node2);
-        nodes.forEach(this::addActor);
     }
 
-    @Override
-    public void draw(Batch batch, float parentAlpha) {
-        drawGrid(batch);
+    // NOTE: zooming has to be handled separately because the 'scrolled' event
+    //  doesn't trigger with a handler method in this listener, so it gets
+    //  dispatched from the Stage's listener instead.
+    //  Not sure why, but the workaround gets the job done for now.
+    private final InputListener panZoomListener = new InputListener() {
 
-        super.draw(batch, parentAlpha);
+        private final Vector2 touchStart = new Vector2();
 
-        for (var connection : connections) {
-            var shapes = Main.get.shapes;
-            shapes.setColor(1, 0, 1, 1);
-            shapes.path(path, 2, JoinType.SMOOTH, true);
-            shapes.setColor(1, 1, 1, 1);
+        @Override
+        public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+            Gdx.app.log("Board", "touched: p=%d|b=%d @ (%.0f, %.0f)".formatted(pointer, button, x, y));
+            touchStart.set(x, y);
+            return true;
         }
-    }
 
-    private void drawGrid(Batch batch) {
-        var shapes = Main.get.shapes;
-        var camera = (OrthographicCamera) stage.getCamera();
-        var color = Color.DARK_GRAY;
-        var lineWidth = 1f;
-
-        shapes.getBatch().setProjectionMatrix(stage.getCamera().combined);
-        shapes.getBatch().begin();
-
-        float gridSize = 50;
-        float left = camera.position.x - camera.viewportWidth / 2 * camera.zoom;
-        float right = camera.position.x + camera.viewportWidth / 2 * camera.zoom;
-        float bottom = camera.position.y - camera.viewportHeight / 2 * camera.zoom;
-        float top = camera.position.y + camera.viewportHeight / 2 * camera.zoom;
-        float xOffset = left % gridSize;
-        float yOffset = bottom % gridSize;
-
-        for (float x = left - xOffset; x < right; x += gridSize) {
-            shapes.line(x, bottom, x, top, color, lineWidth);
+        @Override
+        public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+            super.touchUp(event, x, y, pointer, button);
+            if (panning) {
+                Gdx.app.log("Board", "drag stopped");
+            }
+            panning = false;
         }
-        for (float y = bottom - yOffset; y < top; y += gridSize) {
-            shapes.line(left, y, right, y, color, lineWidth);
+
+        @Override
+        public void touchDragged(InputEvent event, float x, float y, int pointer) {
+            if (!panning) {
+                panning = true;
+                // log once per drag
+                Gdx.app.log("Board", "drag started");
+            }
+
+            float dx = touchStart.x - x;
+            float dy = touchStart.y - y;
+            touchStart.set(x, y);
+
+            camera.position.add(dx, dy, 0);
+            camera.update();
         }
-        shapes.getBatch().end();
-    }
+    };
 
-    private void addPanAndZoomListeners() {
-        addListener(new InputListener() {
-            private final Vector2 lastTouch = new Vector2();
-            private boolean isDraggingNode = false;
-
-            @Override
-            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                var hitActor = stage.hit(x, y, true);
-                isDraggingNode = (hitActor instanceof Node);
-                if (!isDraggingNode) {
-                    lastTouch.set(x, y);
-                }
-                return true;
-            }
-
-            @Override
-            public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-                isDraggingNode = false;
-            }
-
-            @Override
-            public void touchDragged(InputEvent event, float x, float y, int pointer) {
-                if (!isDraggingNode) {
-                    var camera = (OrthographicCamera) stage.getCamera();
-                    camera.position.add(lastTouch.x - x, lastTouch.y - y, 0);
-                    lastTouch.set(x, y);
-                }
-            }
-
-            @Override
-            public boolean scrolled(InputEvent event, float x, float y, float amountX, float amountY) {
-                if (!isDraggingNode) {
-                    var camera = (OrthographicCamera) stage.getCamera();
-                    camera.position.add(lastTouch.x - x, lastTouch.y - y, 0);
-                    camera.zoom += amountY * 0.1f; // Zoom factor
-                    camera.zoom = MathUtils.clamp(camera.zoom, 0.5f, 2f); // Limit zoom range
-                }
-                return true;
-            }
-        });
+    public void zoomBy(float amount) {
+        // TODO(brian): scale amount relative to current zoom level and extents
+        camera.zoom += amount * 0.05f;
+        camera.zoom = MathUtils.clamp(camera.zoom, 0.1f, 2f);
+        camera.update();
     }
 }
