@@ -6,6 +6,7 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
@@ -13,6 +14,7 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Event;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.Value;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
@@ -37,6 +39,8 @@ public class Main extends ApplicationAdapter {
     Color backgroundColor;
     TextureAtlas atlas;
     Texture gdx;
+    Texture pixel;
+    TextureRegion pixelRegion;
 
     // NOTE: for convenience to group all these uiskin atlas textures
     public record RadioButtonTextures(
@@ -73,6 +77,21 @@ public class Main extends ApplicationAdapter {
         backgroundColor = new Color(0.15f, 0.15f, 0.2f, 1f);
         gdx = new Texture("libgdx.png");
 
+        // create a single pixel texture and associated region
+        var pixmap = new Pixmap(2, 2, Pixmap.Format.RGBA8888);
+        {
+            pixmap.setColor(Color.WHITE);
+            pixmap.drawPixel(0, 0);
+            pixmap.drawPixel(1, 0);
+            pixmap.drawPixel(0, 1);
+            pixmap.drawPixel(1, 1);
+
+            pixel = new Texture(pixmap);
+            pixelRegion = new TextureRegion(pixel);
+        }
+        pixmap.dispose();
+        shapes.setTextureRegion(pixelRegion);
+
         var skinFile = "ui/skin-talos/uiskin";
         atlas = new TextureAtlas(Gdx.files.internal(skinFile + ".atlas"));
         radioBtnTextures = new RadioButtonTextures(
@@ -102,7 +121,7 @@ public class Main extends ApplicationAdapter {
         stage.addActor(root);
 
 //        stage.setDebugTableUnderMouse(Table.Debug.all);
-//        stage.setDebugAll(true);
+//        boardStage.setDebugTableUnderMouse(Table.Debug.all);
 
         var inputMux = new InputMultiplexer(stage, boardStage);
         Gdx.input.setInputProcessor(inputMux);
@@ -185,6 +204,7 @@ public class Main extends ApplicationAdapter {
         stage.dispose();
         batch.dispose();
         gdx.dispose();
+        pixel.dispose();
         atlas.dispose();
         VisUI.dispose();
     }

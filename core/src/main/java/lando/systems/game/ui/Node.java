@@ -6,6 +6,8 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Window;
+import com.badlogic.gdx.scenes.scene2d.utils.NinePatchDrawable;
+import com.badlogic.gdx.utils.Align;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisWindow;
 import lando.systems.game.Edge;
@@ -33,7 +35,8 @@ public class Node extends VisWindow {
     final Map<Edge, List<Port>> outputsByEdge = new HashMap<>();
 
     public Node(String title, Stage stage, Skin skin) {
-        super(title, true);
+        super(title, "default3");
+
         this.stage = stage;
         this.skin = skin;
 
@@ -51,22 +54,32 @@ public class Node extends VisWindow {
         setKeepWithinStage(true);
         setKeepWithinParent(true);
 
-        // TODO(brian): 'default' and 'noborder' (and I'm assuming others)
-        //  WindowStyles behave differently than others, they can drag but others can't
-        //  it likely has something to do with `stageBackground` being set or not
-        //  need to get back to it because I'd rather use the 'panel' assets from kenney.nl for nodes
-        var def = skin.get("default2", Window.WindowStyle.class);
-        var nob = skin.get("noborder", Window.WindowStyle.class);
-        var pan = skin.get("panel", Window.WindowStyle.class);
-        var mod = skin.get("module-list", Window.WindowStyle.class);
-        var style = def;
-        setStyle(style);
+        // TODO(brian): surprisingly, WindowStyle can break the draggability of the window
+        //  it's apparently related to the drawable for the background, the width/height
+        //  aren't set correctly for the NinePatchDrawable named 'window-blue' in uiskin.atlas,
+        //  this is the background drawable set in the 'default3' WindowStyle for testing.
+        //  manually setting left/right/top/bottom width/height fixes it, but it'd be better
+        //  to fix the drawable in the atlas.
+        var original = skin.get("default3", Window.WindowStyle.class).background;
+        var background = new NinePatchDrawable((NinePatchDrawable) original);
+        background.setLeftWidth(16);
+        background.setRightWidth(16);
+        background.setTopHeight(29);
+        background.setBottomHeight(20);
+        setBackground(background);
+
+        var titleTable = getTitleTable();
+        titleTable.center();
+        titleTable.padTop(8);
+
+        var titleLabel = getTitleLabel();
+        titleLabel.setAlignment(Align.center);
 
         build();
     }
 
     public void build() {
-        defaults().pad(0).top().left();
+        defaults().pad(10).top().left();
 
         var content = new VisTable(true);
         content.add("Content").growX().row();
